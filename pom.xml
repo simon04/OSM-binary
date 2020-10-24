@@ -67,6 +67,7 @@
               <outputTargets>
                 <outputTarget>
                   <type>java</type>
+                  <outputOptions>lite</outputOptions>
                 </outputTarget>
               </outputTargets>
             </configuration>
@@ -137,7 +138,7 @@
 
     <dependency>
       <groupId>com.google.protobuf</groupId>
-      <artifactId>protobuf-java</artifactId>
+      <artifactId>protobuf-javalite</artifactId>
       <version>3.13.0</version>
     </dependency>
   </dependencies>

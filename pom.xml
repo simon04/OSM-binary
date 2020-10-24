@@ -51,25 +51,24 @@
       </plugin>
 
       <plugin>
-        <groupId>org.xolstice.maven.plugins</groupId>
-        <artifactId>protobuf-maven-plugin</artifactId>
-        <version>0.6.1</version>
-        <configuration>
-          <protocExecutable>protoc</protocExecutable>
-        </configuration>
+        <groupId>com.github.os72</groupId>
+        <artifactId>protoc-jar-maven-plugin</artifactId>
+        <version>3.11.4</version>
         <executions>
           <execution>
-            <id>generate-sources</id>
-            <goals>
-              <goal>compile</goal>
-              <goal>test-compile</goal>
-            </goals>
             <phase>generate-sources</phase>
+            <goals>
+              <goal>run</goal>
+            </goals>
             <configuration>
-              <protoSourceRoot>${basedir}/src</protoSourceRoot>
-              <includes>
-                <param>**/*.proto</param>
-              </includes>
+              <inputDirectories>
+                <include>${basedir}/src</include>
+              </inputDirectories>
+              <outputTargets>
+                <outputTarget>
+                  <type>java</type>
+                </outputTarget>
+              </outputTargets>
             </configuration>
           </execution>
         </executions>

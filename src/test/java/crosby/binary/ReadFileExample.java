@@ -1,6 +1,5 @@
-package crosby.binary.test;
+package crosby.binary;
 
-import crosby.binary.*;
 import crosby.binary.Osmformat.*;
 import crosby.binary.file.*;
 import java.io.*;

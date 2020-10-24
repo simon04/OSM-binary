@@ -34,11 +34,6 @@
   </properties>
 
   <build>
-	<sourceDirectory>${basedir}/src.java</sourceDirectory>
-    <outputDirectory>${basedir}/build</outputDirectory>
-
-   <resources><resource><directory>${basedir}/resources</directory></resource></resources>
-
     <plugins>
 	  <plugin>
         <groupId>org.apache.maven.plugins</groupId>

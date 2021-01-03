@@ -17,16 +17,18 @@
 
 package crosby.binary;
 
+import crosby.binary.file.BlockOutputStream;
+import crosby.binary.file.FileBlock;
+import crosby.binary.wire.PrimitiveBlock;
+import crosby.binary.wire.PrimitiveGroup;
+import crosby.binary.wire.StringTable;
+
 import java.io.Closeable;
 import java.io.Flushable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
-
-import crosby.binary.Osmformat.PrimitiveGroup;
-import crosby.binary.file.BlockOutputStream;
-import crosby.binary.file.FileBlock;
 
 /**
  * Generic serializer common code
@@ -52,7 +54,7 @@ public class BinarySerializer implements Closeable, Flushable {
         /**
          * This callback is invoked to request that the primgroup serialize itself into the given protocol buffer object.
          */
-        public Osmformat.PrimitiveGroup serialize();
+        public PrimitiveGroup serialize();
     }
 
     /** Set the granularity (precision of lat/lon, measured in unites of nanodegrees. */
@@ -83,7 +85,7 @@ public class BinarySerializer implements Closeable, Flushable {
     /** How many primitives have been seen in this batch */
     protected int batch_size = 0;
     protected int total_entities = 0;
-    private final StringTable stringtable = new StringTable();
+    private final StringTable.Builder stringtable = new StringTable.Builder();
     protected List<PrimGroupWriterInterface> groups = new ArrayList<>();
     protected BlockOutputStream output;
 
@@ -92,7 +94,7 @@ public class BinarySerializer implements Closeable, Flushable {
     }
 
     public StringTable getStringTable() {
-        return stringtable;
+        return stringtable.build();
     }
 
     @Override
@@ -113,36 +115,33 @@ public class BinarySerializer implements Closeable, Flushable {
         // System.out.format("Batch of %d groups: ",groups.size());
         if (groups.size() == 0)
             return;
-        Osmformat.PrimitiveBlock.Builder primblock = Osmformat.PrimitiveBlock
-                .newBuilder();
-        stringtable.clear();
+        PrimitiveBlock.Builder primblock = new PrimitiveBlock.Builder();
+        stringtable.s.clear();
         // Preprocessing: Figure out the stringtable.
         for (PrimGroupWriterInterface i : groups)
             i.addStringsToStringtable();
 
-        stringtable.finish();
         // Now, start serializing.
         for (PrimGroupWriterInterface i : groups) {
          PrimitiveGroup group = i.serialize();
          if (group != null)
-           primblock.addPrimitivegroup(group);
+           primblock.primitivegroup.add(group);
         }
-        primblock.setStringtable(stringtable.serialize());
-        primblock.setGranularity(this.granularity);
-        primblock.setDateGranularity(this.date_granularity);
+        primblock.stringtable(stringtable.build());
+        primblock.granularity(this.granularity);
+        primblock.date_granularity(this.date_granularity);
 
         // Only generate data with offset (0,0)
         // 
-        Osmformat.PrimitiveBlock message = primblock.build();
+        PrimitiveBlock message = primblock.build();
 
         // System.out.println(message);
-        debug_bytes += message.getSerializedSize();
+        // debug_bytes += message.getSerializedSize();
         // if (message.getSerializedSize() > 1000000)
         // System.out.println(message);
 
         try {
-            output.write(FileBlock.newInstance("OSMData", message
-                    .toByteString(), null));
+            output.write(FileBlock.newInstance("OSMData", message.encodeByteString(), null));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         } finally {

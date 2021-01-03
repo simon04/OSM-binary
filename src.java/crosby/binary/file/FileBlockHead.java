@@ -17,13 +17,13 @@
 
 package crosby.binary.file;
 
+import crosby.binary.wire.BlobHeader;
+import okio.ByteString;
+
 import java.io.DataInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import com.google.protobuf.ByteString;
-
-import crosby.binary.Fileformat;
 
 /**
  * Intermediate representation of the header of a fileblock when a set of
@@ -53,13 +53,11 @@ public class FileBlockHead extends FileBlockReference {
         byte[] buf = new byte[headersize];
         datinput.readFully(buf);
         // System.out.format("Read buffer for header of %d bytes\n",buf.length);
-        Fileformat.BlobHeader header = Fileformat.BlobHeader
-                .parseFrom(buf);
-        FileBlockHead fileblock = new FileBlockHead(header.getType(), header
-                .getIndexdata());
+        BlobHeader header = BlobHeader.ADAPTER.decode(buf);
+        FileBlockHead fileblock = new FileBlockHead(header.type, header.indexdata);
 
-        fileblock.datasize = header.getDatasize();
-        if (header.getDatasize() > MAX_BODY_SIZE) {
+        fileblock.datasize = header.datasize;
+        if (header.datasize > MAX_BODY_SIZE) {
           throw new FileFormatException("Unexpectedly long body "+MAX_BODY_SIZE+ " bytes. Possibly corrupt file.");
         }
         

@@ -17,10 +17,10 @@
 
 package crosby.binary.file;
 
+import okio.ByteString;
+
 import java.io.IOException;
 import java.io.InputStream;
-
-import com.google.protobuf.ByteString;
 
 /**
  * A FileBlockPosition that remembers what file this is so that it can simply be

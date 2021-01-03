@@ -17,6 +17,9 @@
 
 package crosby.binary.file;
 
+import crosby.binary.wire.Blob;
+import okio.ByteString;
+
 import java.io.DataInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -24,11 +27,6 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
-
-import com.google.protobuf.ByteString;
-import com.google.protobuf.InvalidProtocolBufferException;
-
-import crosby.binary.Fileformat;
 
 /**
  * Stores the position in the stream of a fileblock so that it can be easily
@@ -44,15 +42,15 @@ public class FileBlockPosition extends FileBlockBase {
     }
 
     /** Parse out and decompress the data part of a fileblock helper function. */
-    FileBlock parseData(byte[] buf) throws InvalidProtocolBufferException {
+    FileBlock parseData(byte buf[]) throws IOException {
         FileBlock out = FileBlock.newInstance(type, null, indexdata);
-        Fileformat.Blob blob = Fileformat.Blob.parseFrom(buf);
-        if (blob.hasRaw()) {
-            out.data = blob.getRaw();
-        } else if (blob.hasZlibData()) {
-            byte[] buf2 = new byte[blob.getRawSize()];
+        Blob blob = Blob.ADAPTER.decode(buf);
+        if (blob.raw != null) {
+            out.data = blob.raw;
+        } else if (blob.zlib_data != null) {
+            byte buf2[] = new byte[blob.raw_size];
             Inflater decompresser = new Inflater();
-            decompresser.setInput(blob.getZlibData().toByteArray());
+            decompresser.setInput(blob.zlib_data.toByteArray());
             // decompresser.getRemaining();
             try {
                 decompresser.inflate(buf2);
@@ -61,7 +59,7 @@ public class FileBlockPosition extends FileBlockBase {
             }
             assert (decompresser.finished());
             decompresser.end();
-            out.data = ByteString.copyFrom(buf2);
+            out.data = ByteString.of(buf2);
         }
         return out;
     }
@@ -91,19 +89,6 @@ public class FileBlockPosition extends FileBlockBase {
         } else {
             throw new IllegalArgumentException("Random access binary reads require seekability");
         }
-    }
-
-    /**
-     * TODO: Convert this reference into a serialized representation that can be
-     * stored.
-     */
-    public ByteString serialize() {
-        throw new UnsupportedOperationException("TODO");
-    }
-
-    /** TODO: Parse a serialized representation of this block reference */
-    static FileBlockPosition parseFrom(ByteString b) {
-      throw new UnsupportedOperationException("TODO");
     }
 
     protected int datasize;

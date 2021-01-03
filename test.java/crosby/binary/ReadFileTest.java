@@ -1,8 +1,12 @@
 package crosby.binary;
 
-import crosby.binary.Osmformat.*;
 import crosby.binary.file.BlockInputStream;
 import crosby.binary.file.BlockReaderAdapter;
+import crosby.binary.wire.DenseNodes;
+import crosby.binary.wire.HeaderBlock;
+import crosby.binary.wire.Node;
+import crosby.binary.wire.Relation;
+import crosby.binary.wire.Way;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -477,10 +481,10 @@ public class ReadFileTest {
             long lastLat = 0;
             long lastLon = 0;
 
-            for (int i = 0; i < nodes.getIdCount(); i++) {
-                lastId += nodes.getId(i);
-                lastLat += nodes.getLat(i);
-                lastLon += nodes.getLon(i);
+            for (int i = 0; i < nodes.id.size(); i++) {
+                lastId += nodes.id.get(i);
+                lastLat += nodes.lat.get(i);
+                lastLon += nodes.lon.get(i);
                 writer.printf("Dense node, ID %d @ %.6f,%.6f%n",
                         lastId, parseLat(lastLat), parseLon(lastLon));
             }
@@ -490,27 +494,27 @@ public class ReadFileTest {
         protected void parseNodes(List<Node> nodes) {
             for (Node n : nodes) {
                 writer.printf("Regular node, ID %d @ %.6f,%.6f%n",
-                        n.getId(), parseLat(n.getLat()), parseLon(n.getLon()));
+                        n.id, parseLat(n.lat), parseLon(n.lon));
             }
         }
 
         @Override
         protected void parseWays(List<Way> ways) {
             for (Way w : ways) {
-                writer.println("Way ID " + w.getId());
+                writer.println("Way ID " + w.id);
                 writer.print("  Nodes: ");
                 long lastRef = 0;
-                for (Long ref : w.getRefsList()) {
+                for (Long ref : w.refs) {
                     lastRef += ref;
                     writer.print(lastRef);
                     writer.print(" ");
                 }
                 writer.println();
                 writer.print("  Key=value pairs: ");
-                for (int i = 0; i < w.getKeysCount(); i++) {
-                    writer.print(getStringById(w.getKeys(i)));
+                for (int i = 0; i < w.keys.size(); i++) {
+                    writer.print(getStringById(w.keys.get(i)));
                     writer.print("=");
-                    writer.print(getStringById(w.getVals(i)));
+                    writer.print(getStringById(w.vals.get(i)));
                     writer.print(" ");
                 }
                 writer.println();

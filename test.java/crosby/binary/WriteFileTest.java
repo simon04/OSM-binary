@@ -17,12 +17,19 @@
 
 package crosby.binary;
 
-import com.google.protobuf.ByteString;
-import crosby.binary.Osmformat.*;
-import crosby.binary.Osmformat.StringTable;
-import crosby.binary.Osmformat.Relation.MemberType;
 import crosby.binary.file.BlockOutputStream;
 import crosby.binary.file.FileBlock;
+import crosby.binary.wire.DenseNodes;
+import crosby.binary.wire.HeaderBlock;
+import crosby.binary.wire.Info;
+import crosby.binary.wire.Node;
+import crosby.binary.wire.PrimitiveBlock;
+import crosby.binary.wire.PrimitiveGroup;
+import crosby.binary.wire.Relation.MemberType;
+import crosby.binary.wire.Relation;
+import crosby.binary.wire.StringTable;
+import crosby.binary.wire.Way;
+import okio.ByteString;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -31,6 +38,8 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.Collections;
 
 public class WriteFileTest {
 
@@ -67,174 +76,171 @@ class BuildTestFile {
     public static final long BILLION = 1000000000L;
 
     StringTable makeStringTable(String prefix) {
-        return
-                StringTable.newBuilder()
-                        .addS(ByteString.copyFromUtf8("")) // Never used.
-                        .addS(ByteString.copyFromUtf8(prefix + "Offset1"))
-                        .addS(ByteString.copyFromUtf8(prefix + "Offset2"))
-                        .addS(ByteString.copyFromUtf8(prefix + "Offset3"))
-                        .addS(ByteString.copyFromUtf8(prefix + "Offset4"))
-                        .addS(ByteString.copyFromUtf8(prefix + "Offset5"))
-                        .addS(ByteString.copyFromUtf8(prefix + "Offset6"))
-                        .addS(ByteString.copyFromUtf8(prefix + "Offset7"))
-                        .addS(ByteString.copyFromUtf8(prefix + "Offset8"))
-                        .build();
+        crosby.binary.wire.StringTable.Builder builder = new crosby.binary.wire.StringTable.Builder();
+        builder.s.add(ByteString.encodeUtf8("")); // Never used.
+        builder.s.add(ByteString.encodeUtf8(prefix + "Offset1"));
+        builder.s.add(ByteString.encodeUtf8(prefix + "Offset2"));
+        builder.s.add(ByteString.encodeUtf8(prefix + "Offset3"));
+        builder.s.add(ByteString.encodeUtf8(prefix + "Offset4"));
+        builder.s.add(ByteString.encodeUtf8(prefix + "Offset5"));
+        builder.s.add(ByteString.encodeUtf8(prefix + "Offset6"));
+        builder.s.add(ByteString.encodeUtf8(prefix + "Offset7"));
+        builder.s.add(ByteString.encodeUtf8(prefix + "Offset8"));
+        return builder.build();
+    }
+
+    private static Node.Builder node(long id, long lat, long lon) {
+        return new Node.Builder().id(id).lat(lat).lon(lon);
+    }
+
+    private static Way.Builder way(long id, long... refs) {
+        Way.Builder builder = new Way.Builder().id(id);
+        for (long ref : refs) {
+            builder.refs.add(ref);
+        }
+        return builder;
     }
 
     void makeSimpleFileBlock1() throws IOException {
-        PrimitiveBlock.Builder b1 = PrimitiveBlock.newBuilder();
-        b1.setStringtable(makeStringTable("B1"));
+        PrimitiveBlock.Builder b1 = new PrimitiveBlock.Builder();
+        b1.stringtable(makeStringTable("B1"));
 
-        b1.addPrimitivegroup(
-                PrimitiveGroup.newBuilder()
-                        .addNodes(Node.newBuilder()
-                                .setId(101).setLat(13 * 10 * 1000 * 1000).setLon(-14 * 10 * 1000 * 1000)
-                                .addKeys(1).addVals(2))
-                        .addNodes(Node.newBuilder()
-                                .setId(101).setLat(12345678).setLon(-23456789)) // Should be 1.2345678 degrees lat and -2.3456789 lon.
+        b1.primitivegroup.add(
+                new PrimitiveGroup.Builder().nodes(Arrays.asList(
+                        node(101, 13 * 10 * 1000 * 1000, -14 * 10 * 1000 * 1000)
+                                .keys(Collections.singletonList(1)).vals(Collections.singletonList(2)).build(),
+                        node(101, 12345678, -23456789).build()) // Should be 1.2345678 degrees lat and -2.3456789 lon.
+                ).build()
         );
-        b1.addPrimitivegroup(
-                PrimitiveGroup.newBuilder()
-                        .addWays(Way.newBuilder()
-                                .setId(201)
-                                .addRefs(101).addRefs(1).addRefs(-1).addRefs(10).addRefs(-20) // Delta coded. Should be 101, 102, 101, 111, 91.
-                                .addKeys(2).addVals(1).addKeys(3).addVals(4))
-                        .addWays(Way.newBuilder()
-                                .setId(-301)
-                                .addRefs(211).addRefs(1).addRefs(-1).addRefs(10).addRefs(-300) // Delta coded. Should be 211, 212, 211, 221, -79
-                                .addKeys(4).addVals(3).addKeys(5).addVals(6))
-                        .addWays(Way.newBuilder()
-                                .setId(401).addRefs(211).addRefs(1))
-                        .addWays(Way.newBuilder()
-                                .setId(501))
+        b1.primitivegroup.add(
+                new PrimitiveGroup.Builder().ways(Arrays.asList(
+                        way(201, 101, 1, -1, 10, -20) // Delta coded. Should be 101, 102, 101, 111, 91.
+                                .keys(Arrays.asList(2, 3)).vals(Arrays.asList(1, 4)).build(),
+                        way(-301, 211, 1, -1, 10, -300) // Delta coded. Should be 211, 212, 211, 221, -79
+                                .keys(Arrays.asList(4, 5)).vals(Arrays.asList(3, 6)).build(),
+                        way(401, 211, 1).build(),
+                        way(501).build())
+                ).build()
         );
 
-        b1.addPrimitivegroup(
-                PrimitiveGroup.newBuilder()
-                        .addRelations(Relation.newBuilder()
-                                .setId(601)
-                                .addTypes(MemberType.NODE).addMemids(50).addRolesSid(2)
-                                .addTypes(MemberType.NODE).addMemids(3).addRolesSid(3)
-                                .addTypes(MemberType.WAY).addMemids(3).addRolesSid(4)
-                                .addTypes(MemberType.RELATION).addMemids(3).addRolesSid(5))
-                        .addRelations(Relation.newBuilder()
-                                .setId(701)
-                                .addTypes(MemberType.RELATION).addMemids(60).addRolesSid(6)
-                                .addTypes(MemberType.RELATION).addMemids(5).addRolesSid(7)
-                                .addKeys(1).addVals(2)));
+        b1.primitivegroup.add(
+                new PrimitiveGroup.Builder().relations(Arrays.asList(
+                        new Relation.Builder()
+                                .id(601L)
+                                .types(Arrays.asList(MemberType.NODE, MemberType.NODE, MemberType.WAY, MemberType.RELATION))
+                                .memids(Arrays.asList(50L, 3L, 3L, 3L))
+                                .roles_sid(Arrays.asList(2, 3, 4, 5))
+                                .build(),
+                        new Relation.Builder()
+                                .id(701L)
+                                .types(Arrays.asList(MemberType.RELATION, MemberType.RELATION))
+                                .memids(Arrays.asList(60L, 5L))
+                                .roles_sid(Arrays.asList(6, 7))
+                                .build()
+                )).build()
+        );
 
-        b1.addPrimitivegroup(
-                PrimitiveGroup.newBuilder()
-                        .setDense(DenseNodes.newBuilder()
-                                .addId(1001).addId(110).addId(-2000).addId(8889)
-                                .addLat(12 * 10000000).addLat(1500000).addLat(-12 * 10000000).addLat(-12 * 10000000)
-                                .addLon(-12 * 10000000).addLon(2500000).addLon(13 * 10000000).addLon(2 * 10000000)
-                                .addKeysVals(1).addKeysVals(2).addKeysVals(0)
-                                .addKeysVals(0)
-                                .addKeysVals(2).addKeysVals(3).addKeysVals(4).addKeysVals(5).addKeysVals(0)
-                                .addKeysVals(3).addKeysVals(3).addKeysVals(0)
-                        ));
+        b1.primitivegroup.add(
+                new PrimitiveGroup.Builder()
+                        .dense(new DenseNodes.Builder()
+                                .id(Arrays.asList(1001L, 110L, -2000L, 8889L))
+                                .lat(Arrays.asList(12 * 10000000L, 1500000L, -12 * 10000000L, -12 * 10000000L))
+                                .lon(Arrays.asList(-12 * 10000000L, 2500000L, 13 * 10000000L, 2 * 10000000L))
+                                .keys_vals(Arrays.asList(1, 2, 0, 0, 2, 3, 4, 5, 0, 3, 3, 0))
+                                .build()
+                        ).build()
+        );
 
-        output.write(FileBlock.newInstance("OSMData", b1.build().toByteString(), null));
+        output.write(FileBlock.newInstance("OSMData", b1.build().encodeByteString(), null));
 
-        PrimitiveBlock.Builder b2 = PrimitiveBlock.newBuilder();
-        b2.setLatOffset(10 * BILLION + 109208300)
-                .setLonOffset(20 * BILLION + 901802700)
-                .setGranularity(1200);
-        b2.setStringtable(makeStringTable("B2"));
+        PrimitiveBlock.Builder b2 = new PrimitiveBlock.Builder();
+        b2.lat_offset(10 * BILLION + 109208300)
+                .lon_offset(20 * BILLION + 901802700)
+                .granularity(1200);
+        b2.stringtable(makeStringTable("B2"));
 
         // Test out granularity stuff.
-        b2.addPrimitivegroup(
-                PrimitiveGroup.newBuilder()
-                        .addNodes(Node.newBuilder().setId(100000).setLat(0).setLon(0))
-                        .addNodes(Node.newBuilder().setId(100001).setLat(1000).setLon(2000))
-                        .addNodes(Node.newBuilder().setId(100002).setLat(1001).setLon(2001))
-                        .addNodes(Node.newBuilder().setId(100003).setLat(1002).setLon(2002))
-                        .addNodes(Node.newBuilder().setId(100004).setLat(1003).setLon(2003))
-                        .addNodes(Node.newBuilder().setId(100005).setLat(1004).setLon(2004)));
+        b2.primitivegroup.add(
+                new PrimitiveGroup.Builder().nodes(Arrays.asList(
+                        node(100000L, 0L, 0L).build(),
+                        node(100001L, 1000L, 2000L).build(),
+                        node(100002L, 1001L, 2001L).build(),
+                        node(100003L, 1002L, 2002L).build(),
+                        node(100004L, 1003L, 2003L).build(),
+                        node(100005L, 1004L, 2004L).build())
+                ).build()
+        );
 
 
-        output.write(FileBlock.newInstance("OSMData", b2.build().toByteString(), null));
+        output.write(FileBlock.newInstance("OSMData", b2.build().encodeByteString(), null));
     }
 
 
     BuildTestFile(BlockOutputStream output, String compress) throws IOException {
         this.output = output;
         this.output.setCompress(compress);
-        HeaderBlock.Builder b = HeaderBlock.newBuilder();
-        b.addRequiredFeatures("OsmSchema-V0.6").addRequiredFeatures("DenseNodes").setSource("QuickBrownFox");
-        this.output.write(FileBlock.newInstance("OSMHeader", b.build().toByteString(), null));
+        HeaderBlock.Builder b = new HeaderBlock.Builder();
+        b.required_features(Arrays.asList("OsmSchema-V0.6", "DenseNodes")).source("QuickBrownFox");
+        this.output.write(FileBlock.newInstance("OSMHeader", b.build().encodeByteString(), null));
     }
 
     void makeGranFileBlock1() throws IOException {
-        PrimitiveBlock.Builder b1 = PrimitiveBlock.newBuilder();
-        b1.setLatOffset(10 * BILLION + 109208300)
-                .setLonOffset(20 * BILLION + 901802700)
-                .setGranularity(1200)
-                .setDateGranularity(2500);
-        b1.setStringtable(makeStringTable("C1"));
+        PrimitiveBlock.Builder b1 = new PrimitiveBlock.Builder();
+        b1.lat_offset(10 * BILLION + 109208300)
+                .lon_offset(20 * BILLION + 901802700)
+                .granularity(1200)
+                .date_granularity(2500);
+        b1.stringtable(makeStringTable("C1"));
 
-        b1.addPrimitivegroup(
-                PrimitiveGroup.newBuilder()
-                        .addNodes(Node.newBuilder()
-                                .setId(100001)
-                                .setLat(1000).setLon(2000)
-                                .setInfo(Info.newBuilder()
-                                        .setTimestamp(1001)
-                                        .setChangeset(-12)
-                                        .setUid(21)
-                                        .setUserSid(6)
+        b1.primitivegroup.add(
+                new PrimitiveGroup.Builder().nodes(Arrays.asList(
+                        node(100001, 1000, 2000)
+                                .info(new Info.Builder()
+                                        .timestamp(1001L)
+                                        .changeset(-12L)
+                                        .uid(21)
+                                        .user_sid(6)
+                                        .build())
+                                .build(),
+                        node(100002, 1001, 2001)
+                                .info(new Info.Builder()
+                                        .version(102)
+                                        .timestamp(1002L)
+                                        .changeset(12L)
+                                        .uid(-21)
+                                        .user_sid(5)
+                                        .build())
+                                .build(),
+                        node(100003, 1003, 2003)
+                                .info(new Info.Builder()
+                                        .version(103)
+                                        .user_sid(4)
                                         .build())
                                 .build())
-                        .addNodes(Node.newBuilder()
-                                .setId(100002)
-                                .setLat(1001).setLon(2001)
-                                .setInfo(Info.newBuilder()
-                                        .setVersion(102)
-                                        .setTimestamp(1002)
-                                        .setChangeset(12)
-                                        .setUid(-21)
-                                        .setUserSid(5)
-                                        .build())
-                                .build())
-                        .addNodes(Node.newBuilder()
-                                .setId(100003)
-                                .setLat(1003).setLon(2003)
-                                .setInfo(Info.newBuilder()
-                                        .setVersion(103)
-                                        .setUserSid(4)
-                                        .build())
-                                .build())
+                ).build()
         );
 
         // The same, but with different granularities.
-        PrimitiveBlock.Builder b2 = PrimitiveBlock.newBuilder();
-        b2.setLatOffset(12 * BILLION + 303)
-                .setLonOffset(22 * BILLION + 404)
-                .setGranularity(1401)
-                .setDateGranularity(3003);
-        b2.setStringtable(makeStringTable("C2"));
-        b2.addPrimitivegroup(
-                PrimitiveGroup.newBuilder()
-                        .addNodes(Node.newBuilder()
-                                .setId(100001)
-                                .addKeys(1).addVals(2)
-                                .addKeys(1).addVals(3) // Support multiple vals for a key.
-                                .addKeys(3).addVals(4)
-                                .setLat(1000).setLon(2000)
+        PrimitiveBlock.Builder b2 = new PrimitiveBlock.Builder();
+        b2.lat_offset(12 * BILLION + 303)
+                .lon_offset(22 * BILLION + 404)
+                .granularity(1401)
+                .date_granularity(3003);
+        b2.stringtable(makeStringTable("C2"));
+        b2.primitivegroup.add(
+                new PrimitiveGroup.Builder().nodes(Arrays.asList(
+                        node(100001, 1000, 2000)
+                                .keys(Arrays.asList(1, 1, 3))
+                                .vals(Arrays.asList(2, 3, 4)) // Support multiple vals for a key.
+                                .build(),
+                        node(100002, 1001, 2001).build(),
+                        node(100003, 1003, 2003)
+                                .keys(Collections.singletonList(5)).vals(Collections.singletonList(6))
                                 .build())
-                        .addNodes(Node.newBuilder()
-                                .setId(100002)
-                                .setLat(1001).setLon(2001)
-                                .build())
-                        .addNodes(Node.newBuilder()
-                                .setId(100003)
-                                .setLat(1003).setLon(2003)
-                                .addKeys(5).addVals(6)
-                                .build())
+                ).build()
         );
-        output.write(FileBlock.newInstance("OSMData", b1.build().toByteString(), null));
-        output.write(FileBlock.newInstance("OSMData", b2.build().toByteString(), null));
+        output.write(FileBlock.newInstance("OSMData", b1.build().encodeByteString(), null));
+        output.write(FileBlock.newInstance("OSMData", b2.build().encodeByteString(), null));
     }
 
 }

@@ -17,7 +17,7 @@
 
 package crosby.binary.file;
 
-import com.google.protobuf.ByteString;
+import okio.ByteString;
 
 /**
  * Base class that contains the metadata about a fileblock.

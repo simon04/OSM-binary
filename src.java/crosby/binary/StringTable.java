@@ -17,11 +17,11 @@
 
 package crosby.binary;
 
+import okio.ByteString;
+
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
-
-import com.google.protobuf.ByteString;
 
 /**
  * Class for mapping a set of strings to integers, giving frequently occurring
@@ -121,12 +121,11 @@ public class StringTable {
         set = null;
     }
 
-    public Osmformat.StringTable.Builder serialize() {
-        Osmformat.StringTable.Builder builder = Osmformat.StringTable
-                .newBuilder();
-        builder.addS(ByteString.copyFromUtf8("")); // Add a unused string at offset 0 which is used as a delimiter.
+    public crosby.binary.wire.StringTable.Builder serialize() {
+        crosby.binary.wire.StringTable.Builder builder = new crosby.binary.wire.StringTable.Builder();
+        builder.s.add(ByteString.encodeUtf8("")); // Add a unused string at offset 0 which is used as a delimiter.
         for (String s : set) {
-            builder.addS(ByteString.copyFromUtf8(s));
+            builder.s.add(ByteString.encodeUtf8(s));
         }
         return builder;
     }

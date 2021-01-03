@@ -17,6 +17,10 @@
 
 package crosby.binary.file;
 
+import crosby.binary.wire.Blob;
+import crosby.binary.wire.BlobHeader;
+import okio.ByteString;
+
 import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.FileOutputStream;
@@ -27,10 +31,6 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.zip.Deflater;
 
-import com.google.protobuf.ByteString;
-
-import crosby.binary.Fileformat;
-import crosby.binary.Fileformat.BlobHeader;
 
 /** A full fileblock object contains both the metadata and data of a fileblock */
 public class FileBlock extends FileBlockBase {
@@ -62,7 +62,7 @@ public class FileBlock extends FileBlockBase {
       return new FileBlock(type, blob, indexdata);
     }
 
-     protected void deflateInto(crosby.binary.Fileformat.Blob.Builder blobbuilder) {
+     protected void deflateInto(Blob.Builder blobbuilder) {
         int size = data.size();
         Deflater deflater = new Deflater();
         deflater.setInput(data.toByteArray());
@@ -82,47 +82,46 @@ public class FileBlock extends FileBlockBase {
                 throw new UncheckedIOException(new EOFException());
             }
         }
-        ByteString compressed = ByteString.copyFrom(out, 0, deflater
+        ByteString compressed = ByteString.of(out, 0, deflater
                 .getTotalOut());
-        blobbuilder.setZlibData(compressed);
+        blobbuilder.zlib_data(compressed);
         deflater.end();
     }
 
     public FileBlockPosition writeTo(OutputStream outwrite, CompressFlags flags)
             throws IOException {
-        BlobHeader.Builder builder = Fileformat.BlobHeader
-                .newBuilder();
+        BlobHeader.Builder builder = new BlobHeader.Builder();
         if (indexdata != null)
-            builder.setIndexdata(indexdata);
-        builder.setType(type);
+            builder.indexdata(indexdata);
+        builder.type(type);
 
-        Fileformat.Blob.Builder blobbuilder = Fileformat.Blob.newBuilder();
+        Blob.Builder blobbuilder = new Blob.Builder();
         if (flags == CompressFlags.NONE) {
-            blobbuilder.setRaw(data);
-            blobbuilder.setRawSize(data.size());
+            blobbuilder.raw(data);
+            blobbuilder.raw_size(data.size());
         } else {
-            blobbuilder.setRawSize(data.size());
+            blobbuilder.raw_size(data.size());
             if (flags == CompressFlags.DEFLATE)
                 deflateInto(blobbuilder);
             else
                 throw new IllegalArgumentException("Compression flag not understood");
         }
-        Fileformat.Blob blob = blobbuilder.build();
+        Blob blob = blobbuilder.build();
 
-        builder.setDatasize(blob.getSerializedSize());
-        Fileformat.BlobHeader message = builder.build();
-        int size = message.getSerializedSize();
+        builder.datasize(blob.encodeByteString().size());
+        BlobHeader message = builder.build();
+        int size = message.encodeByteString().size();
 
         // System.out.format("Outputed header size %d bytes, header of %d bytes, and blob of %d bytes\n",
         // size,message.getSerializedSize(),blob.getSerializedSize());
         (new DataOutputStream(outwrite)).writeInt(size);
-        message.writeTo(outwrite);
+        message.encode(outwrite);
         long offset = -1;
 
         if (outwrite instanceof FileOutputStream)
             offset = ((FileOutputStream) outwrite).getChannel().position();
 
-        blob.writeTo(outwrite);
+        blob.encode(outwrite);
         return FileBlockPosition.newInstance(this, offset, size);
     }
 
